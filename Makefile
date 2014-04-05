@@ -1,5 +1,5 @@
 CC= clang
-CFLAGS= -std=c99 -Wall
+CFLAGS= -std=c99 -Wall -g
 LDFLAGS= -ledit -lm
 
 prompt: prompt.c
