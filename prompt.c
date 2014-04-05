@@ -7,121 +7,227 @@
 
 #include "mpc.h"
 
-long eval(mpc_ast_t *t);
+typedef struct {
+    int type;
+    union {
+        long num;
+        int err;
+    };
+} lval;
 
-long eval_plus(mpc_ast_t** children, int num) {
-    assert(num > 0);
+/* value types */
+enum {
+    LVAL_ERR,
+    LVAL_NUM
+};
 
-    int r = 0;
+/* error types */
+enum {
+    LERR_BAD_OP,
+    LERR_DIV_ZERO,
+    LERR_BAD_NUM,
+    LERR_BAD_ARITY
+};
 
-    while(num) {
-        r = r + eval(*children);
-        children++, num--;
+lval lval_num(long x) {
+    lval v;
+    v.type = LVAL_NUM;
+    v.num = x;
+    return v;
+}
+
+lval lval_err(int x) {
+    lval v;
+    v.type = LVAL_ERR;
+    v.err = x;
+    return v;
+}
+
+void lval_print(lval v) {
+    switch (v.type) {
+        case LVAL_ERR:
+            switch (v.err) {
+                case LERR_BAD_OP:
+                    puts("ERROR: invalid operator");
+                break;
+                case LERR_DIV_ZERO:
+                    puts("ERROR: division by 0");
+                break;
+                case LERR_BAD_NUM:
+                    puts("ERROR: bad number");
+                break;
+                case LERR_BAD_ARITY:
+                    puts("ERROR: bad arity");
+                break;
+                default:
+                    assert(0);
+            }
+        break;
+        case LVAL_NUM:
+            printf("%ld", v.num);
+        break;
+        default:
+            assert(0);
+    }
+}
+
+void lval_println(lval v) {
+    lval_print(v);
+    putchar('\n');
+}
+
+lval eval(mpc_ast_t *t);
+
+lval eval_num(mpc_ast_t *t) {
+    lval r = eval(t);
+    if (r.type == LVAL_ERR) return r;
+    if (r.type != LVAL_NUM) return lval_err(LERR_BAD_NUM);
+    return r;
+}
+
+lval eval_plus(mpc_ast_t** children, int n) {
+    if(n <= 0) return lval_err(LERR_BAD_ARITY);
+
+    lval c;
+    lval r = lval_num(0);
+
+    while(n) {
+        c = eval_num(*children);
+        if (c.type == LVAL_ERR) return c;
+        r.num += c.num;
+        children++, n--;
     }
 
     return r;
 }
 
-long eval_minus(mpc_ast_t** children, int num) {
-    assert(num > 0);
+lval eval_minus(mpc_ast_t** children, int n) {
+    if(n <= 0) return lval_err(LERR_BAD_ARITY);
 
-    int r;
+    lval c;
+    lval r = lval_num(0);
 
-    if (num == 1) {
-        r = 0;
-    }
-    else {
-        r = eval(*children);
-        children++, num--;
-    }
-
-    while(num) {
-        r = r - eval(*children);
-        children++, num--;
+    if (n > 1) {
+        c = eval_num(*children);
+        if (c.type == LVAL_ERR) return c;
+        r.num = c.num;
+        children++, n--;
     }
 
-    return r;
-}
-
-long eval_mul(mpc_ast_t** children, int num) {
-    assert(num > 0);
-
-    int r = 1;
-
-    while(num) {
-        r = r * eval(*children);
-        children++, num--;
+    while(n) {
+        c = eval_num(*children);
+        if (c.type == LVAL_ERR) return c;
+        r.num -= c.num;
+        children++, n--;
     }
 
     return r;
 }
 
-long eval_div(mpc_ast_t** children, int num) {
-    assert(num == 2);
+lval eval_mul(mpc_ast_t** children, int n) {
+    if(n <= 0) return lval_err(LERR_BAD_ARITY);
 
-    return eval(children[0]) / eval(children[1]);
-}
+    lval c;
+    lval r = lval_num(1);
 
-long eval_mod(mpc_ast_t** children, int num) {
-    assert(num == 2);
-
-    return eval(children[0]) % eval(children[1]);
-}
-
-long eval_min(mpc_ast_t** children, int num) {
-    assert(num > 0);
-
-    int cur;
-    int r = eval(*children);
-    children++, num--;
-
-    while(num) {
-        cur = eval(*children);
-        if (cur < r) r = cur;
-        children++, num--;
+    while(n) {
+        c = eval_num(*children);
+        if (c.type == LVAL_ERR) return c;
+        r.num *= c.num;
+        children++, n--;
     }
 
     return r;
 }
 
-long eval_max(mpc_ast_t** children, int num) {
-    assert(num > 0);
+lval eval_div(mpc_ast_t** children, int n) {
+    if(n != 2) return lval_err(LERR_BAD_ARITY);
 
-    int cur;
-    int r = eval(*children);
-    children++, num--;
+    lval l = eval_num(children[0]);
+    if (l.type == LVAL_ERR) return l;
+    lval r = eval_num(children[1]);
+    if (r.type == LVAL_ERR) return r;
 
-    while(num) {
-        cur = eval(*children);
-        if (cur > r) r = cur;
-        children++, num--;
+    if (r.num == 0) return lval_err(LERR_DIV_ZERO);
+
+    l.num /= r.num;
+    return l;
+}
+
+lval eval_mod(mpc_ast_t** children, int n) {
+    if(n != 2) return lval_err(LERR_BAD_ARITY);
+
+    lval l = eval_num(children[0]);
+    if (l.type == LVAL_ERR) return l;
+    lval r = eval_num(children[1]);
+    if (r.type == LVAL_ERR) return r;
+
+    if (r.num == 0) return lval_err(LERR_DIV_ZERO);
+
+    l.num %= r.num;
+    return l;
+}
+
+lval eval_min(mpc_ast_t** children, int n) {
+    if(n <= 0) return lval_err(LERR_BAD_ARITY);
+
+    lval c;
+    lval r = eval_num(*children);
+    if (r.type == LVAL_ERR) return r;
+    children++, n--;
+
+    while(n) {
+        c = eval_num(*children);
+        if (c.type == LVAL_ERR) return c;
+        if (c.num < r.num) r = c;
+        children++, n--;
     }
 
     return r;
 }
 
-long eval(mpc_ast_t *t) {
+lval eval_max(mpc_ast_t** children, int n) {
+    if(n <= 0) return lval_err(LERR_BAD_ARITY);
+
+    lval c;
+    lval r = eval_num(*children);
+    if (r.type == LVAL_ERR) return r;
+    children++, n--;
+
+    while(n) {
+        c = eval_num(*children);
+        if (c.type == LVAL_ERR) return c;
+        if (c.num > r.num) r = c;
+        children++, n--;
+    }
+
+    return r;
+}
+
+lval eval(mpc_ast_t *t) {
 
     char *op;
     mpc_ast_t** children;
-    int num;
+    int n;
 
 
     if (strstr(t->tag, "number")) {
-        return atoi(t->contents);
+        long x = strtol(t->contents, NULL, 10);
+        if (errno == ERANGE) return lval_err(LERR_BAD_NUM);
+        return lval_num(x);
     }
 
     op = t->children[1]->contents;
     children = t->children + 2;
-    num = t->children_num - 3;
+    n = t->children_num - 3;
 
-    if (!strcmp(op, "+")) return eval_plus(children, num);
-    if (!strcmp(op, "-")) return eval_minus(children, num);
-    if (!strcmp(op, "*")) return eval_mul(children, num);
-    if (!strcmp(op, "/")) return eval_div(children, num);
-    if (!strcmp(op, "\%")) return eval_mod(children, num);
-    if (!strcmp(op, "min")) return eval_min(children, num);
-    if (!strcmp(op, "max")) return eval_max(children, num);
+    if (!strcmp(op, "+")) return eval_plus(children, n);
+    if (!strcmp(op, "-")) return eval_minus(children, n);
+    if (!strcmp(op, "*")) return eval_mul(children, n);
+    if (!strcmp(op, "/")) return eval_div(children, n);
+    if (!strcmp(op, "\%")) return eval_mod(children, n);
+    if (!strcmp(op, "min")) return eval_min(children, n);
+    if (!strcmp(op, "max")) return eval_max(children, n);
 
     assert(0);
 }
@@ -129,7 +235,7 @@ long eval(mpc_ast_t *t) {
 int main(int argc, char** argv) {
     char* input;
     mpc_result_t mpc_result;
-    long result;
+    lval result;
 
     mpc_parser_t *Number = mpc_new("number");
     mpc_parser_t *Operator = mpc_new("operator");
@@ -152,7 +258,7 @@ int main(int argc, char** argv) {
 
         if (mpc_parse("<stdin>", input, Lispy, &mpc_result)) {
             result = eval(mpc_result.output);
-            printf("%ld\n", result);
+            lval_println(result);
             mpc_ast_delete(mpc_result.output);
         }
         else {
