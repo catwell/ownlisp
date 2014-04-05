@@ -1,18 +1,19 @@
 #include <stdio.h>
+#include <stdlib.h>
 
-#define BUF_SZ 2048
-
-static char input[BUF_SZ];
+#include <editline/readline.h>
+#include <histedit.h>
 
 int main(int argc, char** argv) {
-
+    char* input;
 
     for(;;) {
-        fputs("> ", stdout);
-        fgets(input, BUF_SZ, stdin);
-        fputs(input, stdout);
-    }
 
+        input = readline("> ");
+        add_history(input);
+        puts(input);
+        free(input);
+    }
 
     return 0;
 }
