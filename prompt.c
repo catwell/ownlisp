@@ -7,248 +7,403 @@
 
 #include "mpc.h"
 
+typedef struct lval lval;
+
 typedef struct {
+    int count;
+    lval **cell;
+} sexpr;
+
+struct lval {
     int type;
     union {
         long num;
-        int err;
+        char *err;
+        char *sym;
+        sexpr *sexpr;
     };
-} lval;
+};
 
 /* value types */
 enum {
     LVAL_ERR,
-    LVAL_NUM
+    LVAL_NUM,
+    LVAL_SYM,
+    LVAL_SEXPR
 };
 
-/* error types */
-enum {
-    LERR_BAD_OP,
-    LERR_DIV_ZERO,
-    LERR_BAD_NUM,
-    LERR_BAD_ARITY
-};
+#define LERR_BAD_OP lval_err("bad operator")
+#define LERR_DIV_ZERO lval_err("division by 0")
+#define LERR_BAD_NUM lval_err("bad number")
+#define LERR_BAD_ARITY lval_err("bad arity")
+#define LERR_BAD_SEXP lval_err("bad S-Expression")
 
-lval lval_num(long x) {
-    lval v;
-    v.type = LVAL_NUM;
-    v.num = x;
+void lval_print(lval *this);
+void sexpr_print(sexpr *this);
+lval *lval_eval(lval *this);
+
+lval * lval_num(long x) {
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_NUM;
+    v->num = x;
     return v;
 }
 
-lval lval_err(int x) {
-    lval v;
-    v.type = LVAL_ERR;
-    v.err = x;
+lval * lval_err(char *x) {
+    ssize_t sz = strlen(x) + 1;
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_ERR;
+    v->err = malloc(sz);
+    memcpy(v->err, x, sz);
     return v;
 }
 
-void lval_print(lval v) {
-    switch (v.type) {
+lval * lval_sym(char *x) {
+    ssize_t sz = strlen(x) + 1;
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_SYM;
+    v->sym = malloc(sz);
+    memcpy(v->sym, x, sz);
+    return v;
+}
+
+lval * lval_sexpr(void) {
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_SEXPR;
+    v->sexpr = malloc(sizeof(sexpr));
+    v->sexpr->count = 0;
+    v->sexpr->cell = NULL;
+    return v;
+}
+
+void lval_del(lval *this) {
+    int i;
+
+    switch (this->type) {
         case LVAL_ERR:
-            switch (v.err) {
-                case LERR_BAD_OP:
-                    puts("ERROR: invalid operator");
-                break;
-                case LERR_DIV_ZERO:
-                    puts("ERROR: division by 0");
-                break;
-                case LERR_BAD_NUM:
-                    puts("ERROR: bad number");
-                break;
-                case LERR_BAD_ARITY:
-                    puts("ERROR: bad arity");
-                break;
-                default:
-                    assert(0);
-            }
+            free(this->err);
         break;
         case LVAL_NUM:
-            printf("%ld", v.num);
+        break;
+        case LVAL_SYM:
+            free(this->sym);
+        break;
+        case LVAL_SEXPR:
+            for (i = 0; i < this->sexpr->count; ++i) {
+                lval_del(this->sexpr->cell[i]);
+            }
+            if (this->sexpr->cell) free(this->sexpr->cell);
+            free(this->sexpr);
+        break;
+        default:
+            assert(0);
+    }
+
+    free(this);
+}
+
+sexpr *sexpr_add(sexpr *this, lval *x) {
+    this->count++;
+    this->cell = realloc(this->cell, sizeof(lval*) * this->count);
+    this->cell[this->count - 1] = x;
+    return this;
+}
+
+lval *lval_read_num(mpc_ast_t *t) {
+    assert(strstr(t->tag, "number"));
+    long x = strtol(t->contents, NULL, 10);
+    if (errno == ERANGE) return LERR_BAD_NUM;
+    return lval_num(x);
+}
+
+lval *lval_read(mpc_ast_t *t) {
+    int i;
+    lval *x;
+
+    if (strstr(t->tag, "number")) return lval_read_num(t);
+    if (strstr(t->tag, "symbol")) return lval_sym(t->contents);
+
+    assert(
+        (strcmp(t->tag, ">") == 0) ||
+        strstr(t->tag, "sexpr")
+    );
+
+    x = lval_sexpr();
+
+    for (i = 0; i < t->children_num; ++i) {
+        if (
+            (strlen(t->children[i]->contents) == 1) &&
+            strstr("(){}", t->children[i]->contents)
+        ) continue;
+        if (!strcmp(t->children[i]->tag,  "regex")) continue;
+        x->sexpr = sexpr_add(x->sexpr, lval_read(t->children[i]));
+    }
+
+    return x;
+}
+
+void sexpr_print(sexpr *this) {
+    int i;
+
+    putchar('(');
+    for (i = 0; i < this->count; ++i)
+    {
+        lval_print(this->cell[i]);
+        if (i != this->count - 1) putchar(' ');
+    }
+    putchar(')');
+}
+
+void lval_print(lval *this) {
+    switch (this->type) {
+        case LVAL_ERR:
+            printf("ERROR %s\n", this->err);
+        break;
+        case LVAL_NUM:
+            printf("%ld", this->num);
+        break;
+        case LVAL_SYM:
+            printf("%s", this->sym);
+        break;
+        case LVAL_SEXPR:
+            sexpr_print(this->sexpr);
         break;
         default:
             assert(0);
     }
 }
 
-void lval_println(lval v) {
-    lval_print(v);
+void lval_println(lval *this) {
+    lval_print(this);
     putchar('\n');
 }
 
-lval eval(mpc_ast_t *t);
-
-lval eval_num(mpc_ast_t *t) {
-    lval r = eval(t);
-    if (r.type == LVAL_ERR) return r;
-    if (r.type != LVAL_NUM) return lval_err(LERR_BAD_NUM);
+lval *sexpr_pop(sexpr *this, int i) {
+    lval *r = this->cell[i];
+    this->count--;
+    memmove(
+        this->cell + i, this->cell + i + 1,
+        sizeof(lval*) * (this->count - i)
+    );
+    this->cell = realloc(this->cell, sizeof(lval*) * this->count);
     return r;
 }
 
-lval eval_plus(mpc_ast_t** children, int n) {
-    if(n <= 0) return lval_err(LERR_BAD_ARITY);
-
-    lval c;
-    lval r = lval_num(0);
-
-    while(n) {
-        c = eval_num(*children);
-        if (c.type == LVAL_ERR) return c;
-        r.num += c.num;
-        children++, n--;
+lval *sexpr_pop_num(sexpr *this) {
+    lval *r = sexpr_pop(this, 0);
+    if (r->type == LVAL_ERR) return r;
+    if (r->type != LVAL_NUM) {
+        lval_del(r);
+        return LERR_BAD_NUM;
     }
-
     return r;
 }
 
-lval eval_minus(mpc_ast_t** children, int n) {
-    if(n <= 0) return lval_err(LERR_BAD_ARITY);
+lval *sexpr_eval_plus(sexpr *this) {
+    lval *c;
+    lval *r = lval_num(0);
 
-    lval c;
-    lval r = lval_num(0);
-
-    if (n > 1) {
-        c = eval_num(*children);
-        if (c.type == LVAL_ERR) return c;
-        r.num = c.num;
-        children++, n--;
-    }
-
-    while(n) {
-        c = eval_num(*children);
-        if (c.type == LVAL_ERR) return c;
-        r.num -= c.num;
-        children++, n--;
+    while(this->count) {
+        c = sexpr_pop_num(this);
+        if (c->type == LVAL_ERR) {
+            lval_del(r);
+            return c;
+        }
+        r->num += c->num;
+        lval_del(c);
     }
 
     return r;
 }
 
-lval eval_mul(mpc_ast_t** children, int n) {
-    if(n <= 0) return lval_err(LERR_BAD_ARITY);
+lval *sexpr_eval_minus(sexpr *this) {
+    lval *c;
+    lval *r;
 
-    lval c;
-    lval r = lval_num(1);
+    if  (this->count > 1) {
+        r = sexpr_pop_num(this);
+    }
+    else {
+        r = lval_num(0);
+    }
 
-    while(n) {
-        c = eval_num(*children);
-        if (c.type == LVAL_ERR) return c;
-        r.num *= c.num;
-        children++, n--;
+    while(this->count) {
+        c = sexpr_pop_num(this);
+        if (c->type == LVAL_ERR) {
+            lval_del(r);
+            return c;
+        }
+        r->num -= c->num;
+        lval_del(c);
     }
 
     return r;
 }
 
-lval eval_div(mpc_ast_t** children, int n) {
-    if(n != 2) return lval_err(LERR_BAD_ARITY);
+lval *sexpr_eval_mul(sexpr *this) {
+    lval *c;
+    lval *r = lval_num(1);
 
-    lval l = eval_num(children[0]);
-    if (l.type == LVAL_ERR) return l;
-    lval r = eval_num(children[1]);
-    if (r.type == LVAL_ERR) return r;
-
-    if (r.num == 0) return lval_err(LERR_DIV_ZERO);
-
-    l.num /= r.num;
-    return l;
-}
-
-lval eval_mod(mpc_ast_t** children, int n) {
-    if(n != 2) return lval_err(LERR_BAD_ARITY);
-
-    lval l = eval_num(children[0]);
-    if (l.type == LVAL_ERR) return l;
-    lval r = eval_num(children[1]);
-    if (r.type == LVAL_ERR) return r;
-
-    if (r.num == 0) return lval_err(LERR_DIV_ZERO);
-
-    l.num %= r.num;
-    return l;
-}
-
-lval eval_min(mpc_ast_t** children, int n) {
-    if(n <= 0) return lval_err(LERR_BAD_ARITY);
-
-    lval c;
-    lval r = eval_num(*children);
-    if (r.type == LVAL_ERR) return r;
-    children++, n--;
-
-    while(n) {
-        c = eval_num(*children);
-        if (c.type == LVAL_ERR) return c;
-        if (c.num < r.num) r = c;
-        children++, n--;
+    while(this->count) {
+        c = sexpr_pop_num(this);
+        if (c->type == LVAL_ERR) {
+            lval_del(r);
+            return c;
+        }
+        r->num *= c->num;
+        lval_del(c);
     }
 
     return r;
 }
 
-lval eval_max(mpc_ast_t** children, int n) {
-    if(n <= 0) return lval_err(LERR_BAD_ARITY);
+lval *sexpr_eval_div(sexpr *this) {
+    if(this->count != 2) return LERR_BAD_ARITY;
 
-    lval c;
-    lval r = eval_num(*children);
-    if (r.type == LVAL_ERR) return r;
-    children++, n--;
+    lval *left = sexpr_pop_num(this);
+    if (left->type == LVAL_ERR) return left;
+    lval *right = sexpr_pop_num(this);
+    if (right->type == LVAL_ERR) {
+        lval_del(left);
+        return right;
+    }
 
-    while(n) {
-        c = eval_num(*children);
-        if (c.type == LVAL_ERR) return c;
-        if (c.num > r.num) r = c;
-        children++, n--;
+    if (right->num == 0) {
+        lval_del(left); lval_del(right);
+        return LERR_DIV_ZERO;
+    }
+
+    left->num /= right->num;
+    return left;
+}
+
+lval *sexpr_eval_mod(sexpr *this) {
+    if(this->count != 2) return LERR_BAD_ARITY;
+
+    lval *left = sexpr_pop_num(this);
+    if (left->type == LVAL_ERR) return left;
+    lval *right = sexpr_pop_num(this);
+    if (right->type == LVAL_ERR) {
+        lval_del(left);
+        return right;
+    }
+
+    if (right->num == 0) {
+        lval_del(left); lval_del(right);
+        return LERR_DIV_ZERO;
+    }
+
+    left->num %= right->num;
+    return left;
+}
+
+lval *sexpr_eval_min(sexpr *this) {
+    if(this->count < 1) return LERR_BAD_ARITY;
+
+    lval *c;
+    lval *r = sexpr_pop_num(this);
+    if (r->type == LVAL_ERR) return r;
+
+    while(this->count) {
+        c = sexpr_pop_num(this);
+        if (c->type == LVAL_ERR) {
+            lval_del(r);
+            return c;
+        }
+        if(c->num > r->num) {
+            lval_del(r);
+            r = c;
+        }
+        else {
+            lval_del(c);
+        }
     }
 
     return r;
 }
 
-lval eval(mpc_ast_t *t) {
+lval *sexpr_eval_max(sexpr *this) {
+    if(this->count < 1) return LERR_BAD_ARITY;
 
-    char *op;
-    mpc_ast_t** children;
-    int n;
+    lval *c;
+    lval *r = sexpr_pop_num(this);
+    if (r->type == LVAL_ERR) return r;
 
-
-    if (strstr(t->tag, "number")) {
-        long x = strtol(t->contents, NULL, 10);
-        if (errno == ERANGE) return lval_err(LERR_BAD_NUM);
-        return lval_num(x);
+    while(this->count) {
+        c = sexpr_pop_num(this);
+        if (c->type == LVAL_ERR) {
+            lval_del(r);
+            return c;
+        }
+        if(c->num < r->num) {
+            lval_del(r);
+            r = c;
+        }
+        else {
+            lval_del(c);
+        }
     }
 
-    op = t->children[1]->contents;
-    children = t->children + 2;
-    n = t->children_num - 3;
+    return r;
+}
 
-    if (!strcmp(op, "+")) return eval_plus(children, n);
-    if (!strcmp(op, "-")) return eval_minus(children, n);
-    if (!strcmp(op, "*")) return eval_mul(children, n);
-    if (!strcmp(op, "/")) return eval_div(children, n);
-    if (!strcmp(op, "\%")) return eval_mod(children, n);
-    if (!strcmp(op, "min")) return eval_min(children, n);
-    if (!strcmp(op, "max")) return eval_max(children, n);
+lval *sexpr_eval(sexpr *this) {
+    int i;
+    lval *head;
+    lval *r;
 
-    assert(0);
+    for(i = 0; i < this->count; ++i) {
+        this->cell[i] = lval_eval(this->cell[i]);
+        if (this->cell[i]->type == LVAL_ERR) return sexpr_pop(this, i);
+    }
+
+    if (this->count == 0) return lval_sexpr();
+    if (this->count == 1) return sexpr_pop(this, 0);
+
+    head = sexpr_pop(this, 0);
+
+    if (head->type != LVAL_SYM) r =  LERR_BAD_SEXP;
+    else if (!strcmp(head->sym, "+")) r = sexpr_eval_plus(this);
+    else if (!strcmp(head->sym, "-")) r = sexpr_eval_minus(this);
+    else if (!strcmp(head->sym, "*")) r = sexpr_eval_mul(this);
+    else if (!strcmp(head->sym, "/")) r = sexpr_eval_div(this);
+    else if (!strcmp(head->sym, "\%")) r = sexpr_eval_mod(this);
+    else if (!strcmp(head->sym, "min")) r = sexpr_eval_min(this);
+    else if (!strcmp(head->sym, "max")) r = sexpr_eval_max(this);
+    else r = LERR_BAD_OP;
+
+    lval_del(head);
+    return r;
+}
+
+lval *lval_eval(lval *this) {
+    lval *r = this;
+    if (this->type == LVAL_SEXPR) {
+        r = sexpr_eval(this->sexpr);
+        lval_del(this);
+    }
+    return r;
 }
 
 int main(int argc, char** argv) {
     char* input;
     mpc_result_t mpc_result;
-    lval result;
+    lval *result;
 
     mpc_parser_t *Number = mpc_new("number");
-    mpc_parser_t *Operator = mpc_new("operator");
+    mpc_parser_t *Symbol = mpc_new("symbol");
+    mpc_parser_t *Sexpr = mpc_new("sexpr");
     mpc_parser_t *Expr = mpc_new("expr");
     mpc_parser_t *Lispy = mpc_new("lispy");
 
     mpca_lang(
         MPC_LANG_DEFAULT,
         "number   :  /-?[0-9]+/ ;"
-        "operator :  '+' | '-' | '*' | '/' | '\%' | \"min\" | \"max\" ;"
-        "expr     :  <number> | '(' <operator> <expr>+ ')' ;"
-        "lispy    :  /^/ <operator> <expr>+ /$/ ;",
-        Number, Operator, Expr, Lispy
+        "symbol   :  '+' | '-' | '*' | '/' | '\%' | \"min\" | \"max\" ;"
+        "sexpr    :  '(' <expr>* ')' ;"
+        "expr     :  <number> | <symbol> | <sexpr> ;"
+        "lispy    :  /^/ <expr>* /$/ ;",
+        Number, Symbol, Sexpr, Expr, Lispy
     );
 
     for(;;) {
@@ -257,8 +412,11 @@ int main(int argc, char** argv) {
         add_history(input);
 
         if (mpc_parse("<stdin>", input, Lispy, &mpc_result)) {
-            result = eval(mpc_result.output);
+            result = lval_read(mpc_result.output);
             lval_println(result);
+            result = lval_eval(result);
+            lval_println(result);
+            lval_del(result);
             mpc_ast_delete(mpc_result.output);
         }
         else {
@@ -269,7 +427,7 @@ int main(int argc, char** argv) {
         free(input);
     }
 
-    mpc_cleanup(4, Number, Operator, Expr, Lispy);
+    mpc_cleanup(5, Number, Symbol, Sexpr, Expr, Lispy);
 
     return 0;
 }
