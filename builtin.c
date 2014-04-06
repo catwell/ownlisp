@@ -1,6 +1,6 @@
 #include "ownlisp.h"
 
-lval * builtin_plus(expr *this) {
+lval * builtin_plus(expr *this, lenv *env) {
     lval *c;
     lval *r = lval_num(0);
 
@@ -17,7 +17,7 @@ lval * builtin_plus(expr *this) {
     return r;
 }
 
-lval * builtin_minus(expr *this) {
+lval * builtin_minus(expr *this, lenv *env) {
     lval *c;
     lval *r;
 
@@ -41,7 +41,7 @@ lval * builtin_minus(expr *this) {
     return r;
 }
 
-lval * builtin_mul(expr *this) {
+lval * builtin_mul(expr *this, lenv *env) {
     lval *c;
     lval *r = lval_num(1);
 
@@ -58,7 +58,7 @@ lval * builtin_mul(expr *this) {
     return r;
 }
 
-lval * builtin_div(expr *this) {
+lval * builtin_div(expr *this, lenv *env) {
     if(this->count != 2) return LERR_BAD_ARITY;
 
     lval *left = expr_pop_num(this);
@@ -78,7 +78,7 @@ lval * builtin_div(expr *this) {
     return left;
 }
 
-lval * builtin_mod(expr *this) {
+lval * builtin_mod(expr *this, lenv *env) {
     if(this->count != 2) return LERR_BAD_ARITY;
 
     lval *left = expr_pop_num(this);
@@ -98,7 +98,7 @@ lval * builtin_mod(expr *this) {
     return left;
 }
 
-lval * builtin_min(expr *this) {
+lval * builtin_min(expr *this, lenv *env) {
     if(this->count < 1) return LERR_BAD_ARITY;
 
     lval *c;
@@ -123,7 +123,7 @@ lval * builtin_min(expr *this) {
     return r;
 }
 
-lval * builtin_max(expr *this) {
+lval * builtin_max(expr *this, lenv *env) {
     if(this->count < 1) return LERR_BAD_ARITY;
 
     lval *c;
@@ -148,7 +148,7 @@ lval * builtin_max(expr *this) {
     return r;
 }
 
-lval * builtin_head(expr *this) {
+lval * builtin_head(expr *this, lenv *env) {
     if(this->count != 1) return LERR_BAD_ARITY;
 
     lval *r = expr_pop_qexpr(this);
@@ -166,7 +166,7 @@ lval * builtin_head(expr *this) {
     return r;
 }
 
-lval * builtin_tail(expr *this) {
+lval * builtin_tail(expr *this, lenv *env) {
     if(this->count != 1) return LERR_BAD_ARITY;
 
     lval *r = expr_pop_qexpr(this);
@@ -182,7 +182,7 @@ lval * builtin_tail(expr *this) {
     return r;
 }
 
-lval * builtin_list(expr *this) {
+lval * builtin_list(expr *this, lenv *env) {
     lval *r = lval_qexpr();
 
     while(this->count) {
@@ -192,17 +192,17 @@ lval * builtin_list(expr *this) {
     return r;
 }
 
-lval * builtin_eval(expr *this) {
+lval * builtin_eval(expr *this, lenv *env) {
     if(this->count != 1) return LERR_BAD_ARITY;
 
     lval *r = expr_pop_qexpr(this);
     if (r->type == LVAL_ERR) return r;
 
     r->type = LVAL_SEXPR;
-    return lval_eval(r);
+    return lval_eval(r, env);
 }
 
-lval * builtin_join(expr *this) {
+lval * builtin_join(expr *this, lenv *env) {
     if(this->count < 1) return LERR_BAD_ARITY;
 
     lval *c;
@@ -224,7 +224,7 @@ lval * builtin_join(expr *this) {
     return r;
 }
 
-lval * builtin_cons(expr *this) {
+lval * builtin_cons(expr *this, lenv *env) {
     if(this->count != 2) return LERR_BAD_ARITY;
 
     lval *c = expr_pop(this, 0);
@@ -239,7 +239,7 @@ lval * builtin_cons(expr *this) {
     return r;
 }
 
-lval * builtin_len(expr *this) {
+lval * builtin_len(expr *this, lenv *env) {
     if(this->count != 1) return LERR_BAD_ARITY;
 
     lval *r;
@@ -252,7 +252,7 @@ lval * builtin_len(expr *this) {
     return r;
 }
 
-lval * builtin_init(expr *this) {
+lval * builtin_init(expr *this, lenv *env) {
     if(this->count != 1) return LERR_BAD_ARITY;
 
     lval *r = expr_pop_qexpr(this);
@@ -268,39 +268,49 @@ lval * builtin_init(expr *this) {
     return r;
 }
 
-lval * builtin(expr *this) {
-    int i;
-    lval *head;
-    lval *r;
+lval * builtin_def(expr *this, lenv *env) {
+    lval *sym;
+    lval *v;
 
-    for(i = 0; i < this->count; ++i) {
-        this->cell[i] = lval_eval(this->cell[i]);
-        if (this->cell[i]->type == LVAL_ERR) return expr_pop(this, i);
+    if(this->count < 1) return LERR_BAD_ARITY;
+
+    lval *syms = expr_pop_qexpr(this);
+    if (syms->type == LVAL_ERR) return syms;
+
+    if(this->count != syms->expr->count) {
+        lval_del(syms);
+        return LERR_BAD_ARITY;
     }
 
-    if (this->count == 0) return lval_sexpr();
-    if (this->count == 1) return expr_pop(this, 0);
+    while(this->count) {
+        sym = expr_pop_sym(syms->expr);
+        if (sym->type == LVAL_ERR) {
+            lval_del(syms);
+            return sym;
+        }
+        v = expr_pop(this, 0);
+        lenv_put_nocopy(env, sym->sym, v);
+    }
 
-    head = expr_pop(this, 0);
+    lval_del(syms);
+    return lval_sexpr();
+}
 
-    if (head->type != LVAL_SYM) r =  LERR_BAD_SEXP;
-    else if (!strcmp(head->sym, "+")) r = builtin_plus(this);
-    else if (!strcmp(head->sym, "-")) r = builtin_minus(this);
-    else if (!strcmp(head->sym, "*")) r = builtin_mul(this);
-    else if (!strcmp(head->sym, "/")) r = builtin_div(this);
-    else if (!strcmp(head->sym, "\%")) r = builtin_mod(this);
-    else if (!strcmp(head->sym, "min")) r = builtin_min(this);
-    else if (!strcmp(head->sym, "max")) r = builtin_max(this);
-    else if (!strcmp(head->sym, "list")) r = builtin_list(this);
-    else if (!strcmp(head->sym, "head")) r = builtin_head(this);
-    else if (!strcmp(head->sym, "tail")) r = builtin_tail(this);
-    else if (!strcmp(head->sym, "eval")) r = builtin_eval(this);
-    else if (!strcmp(head->sym, "join")) r = builtin_join(this);
-    else if (!strcmp(head->sym, "cons")) r = builtin_cons(this);
-    else if (!strcmp(head->sym, "len")) r = builtin_len(this);
-    else if (!strcmp(head->sym, "init")) r = builtin_init(this);
-    else r = LERR_BAD_OP;
-
-    lval_del(head);
-    return r;
+void register_builtins(lenv *env) {
+    lenv_add_builtin(env, "+", builtin_plus);
+    lenv_add_builtin(env, "-", builtin_minus);
+    lenv_add_builtin(env, "*", builtin_mul);
+    lenv_add_builtin(env, "/", builtin_div);
+    lenv_add_builtin(env, "\%", builtin_mod);
+    lenv_add_builtin(env, "min", builtin_min);
+    lenv_add_builtin(env, "max", builtin_max);
+    lenv_add_builtin(env, "list", builtin_list);
+    lenv_add_builtin(env, "head", builtin_head);
+    lenv_add_builtin(env, "tail", builtin_tail);
+    lenv_add_builtin(env, "eval", builtin_eval);
+    lenv_add_builtin(env, "join", builtin_join);
+    lenv_add_builtin(env, "cons", builtin_cons);
+    lenv_add_builtin(env, "len", builtin_len);
+    lenv_add_builtin(env, "init", builtin_init);
+    lenv_add_builtin(env, "def", builtin_def);
 }

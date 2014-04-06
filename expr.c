@@ -61,3 +61,33 @@ lval * expr_pop_typed(expr *this, int type) {
     }
     return r;
 }
+
+lval * expr_eval(expr *this, lenv *env) {
+    int i;
+    lval *head;
+    lval *r;
+
+    for(i = 0; i < this->count; ++i) {
+        this->cell[i] = lval_eval(this->cell[i], env);
+        if (this->cell[i]->type == LVAL_ERR) return expr_pop(this, i);
+    }
+
+    if (this->count == 0) return lval_sexpr();
+    if (this->count == 1) return expr_pop(this, 0);
+
+    head = expr_pop(this, 0);
+
+    if (head->type != LVAL_FUN) {
+        if (head->type == LVAL_SYM) {
+            r = LERR_BAD_OP;
+        }
+        else {
+            r =  LERR_BAD_SEXP;
+        }
+    }
+
+    r = head->fun(this, env);
+
+    lval_del(head);
+    return r;
+}

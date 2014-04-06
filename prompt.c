@@ -26,6 +26,9 @@ int main(int argc, char** argv) {
         Number, Symbol, Sexpr, Qexpr, Expr, Lispy
     );
 
+    lenv *env = lenv_new();
+    register_builtins(env);
+
     for(;;) {
 
         input = readline("> ");
@@ -34,7 +37,7 @@ int main(int argc, char** argv) {
         if (mpc_parse("<stdin>", input, Lispy, &mpc_result)) {
             result = ast_read(mpc_result.output);
             if(DEBUG) lval_println(result);
-            result = lval_eval(result);
+            result = lval_eval(result, env);
             lval_println(result);
             lval_del(result);
             mpc_ast_delete(mpc_result.output);
@@ -47,6 +50,7 @@ int main(int argc, char** argv) {
         free(input);
     }
 
+    lenv_del(env);
     mpc_cleanup(6, Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
 
     return 0;

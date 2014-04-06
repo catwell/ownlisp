@@ -148,10 +148,14 @@ void lval_println(lval *this) {
 
 /* eval */
 
-lval * lval_eval(lval *this) {
+lval * lval_eval(lval *this, lenv *env) {
     lval *r = this;
     if (this->type == LVAL_SEXPR) {
-        r = builtin(this->expr);
+        r = expr_eval(this->expr, env);
+        lval_del(this);
+    }
+    else if (this->type == LVAL_SYM) {
+        r = lenv_get(env, this->sym);
         lval_del(this);
     }
     return r;
