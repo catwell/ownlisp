@@ -268,7 +268,7 @@ lval * builtin_init(expr *this, lenv *env) {
     return r;
 }
 
-lval * builtin_def(expr *this, lenv *env) {
+static lval * _def_impl(expr *this, lenv *env, int global) {
     lval *sym;
     lval *v;
 
@@ -289,11 +289,58 @@ lval * builtin_def(expr *this, lenv *env) {
             return sym;
         }
         v = expr_pop(this, 0);
-        lenv_put_nocopy(env, sym->sym, v);
+        if (global) { /* def */
+            lenv_set_global(env, sym->sym, v);
+        }
+        else { /* = */
+            lenv_set(env, sym->sym, v);
+        }
     }
 
     lval_del(syms);
     return lval_sexpr();
+}
+
+lval * builtin_def(expr *this, lenv *env) {
+    return _def_impl(this, env, 1);
+}
+
+lval * builtin_deflocal(expr *this, lenv *env) {
+    return _def_impl(this, env, 0);
+}
+
+lval * builtin_lambda(expr *this, lenv *env) {
+    int i;
+    lambda *r;
+
+    if(this->count != 2) return LERR_BAD_ARITY;
+
+    lval *args = expr_pop_qexpr(this);
+    if (args->type == LVAL_ERR) return args;
+
+    lval *body = expr_pop_qexpr(this);
+    if (body->type == LVAL_ERR) {
+        lval_del(args);
+        return body;
+    }
+
+    for(i = 0; i < args->expr->count; ++i) {
+        if (args->expr->cell[i]->type != LVAL_SYM) {
+            lval_del(args);
+            lval_del(body);
+            return LERR_BAD_TYPE;
+        }
+    }
+
+    r = lambda_new();
+    r->env = lenv_new();
+    r->args = args->expr;
+    r->body = body->expr;
+
+    args->expr = NULL; body->expr = NULL;
+    lval_del(args); lval_del(body);
+
+    return lval_lambda(r);
 }
 
 void register_builtins(lenv *env) {
@@ -313,4 +360,6 @@ void register_builtins(lenv *env) {
     lenv_add_builtin(env, "len", builtin_len);
     lenv_add_builtin(env, "init", builtin_init);
     lenv_add_builtin(env, "def", builtin_def);
+    lenv_add_builtin(env, "=", builtin_deflocal);
+    lenv_add_builtin(env, "\\", builtin_lambda);
 }

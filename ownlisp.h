@@ -13,12 +13,19 @@
 typedef struct lval lval;
 typedef struct  lenv lenv;
 typedef struct expr expr;
+typedef struct lambda lambda;
 
 typedef lval * (*lbuiltin)(expr *this, lenv *env);
 
 struct expr {
     int count;
     lval **cell;
+};
+
+struct lambda {
+    lenv *env;
+    expr *args;
+    expr *body;
 };
 
 struct lval {
@@ -28,12 +35,14 @@ struct lval {
         char *err;
         char *sym;
         expr *expr;
-        lbuiltin fun;
+        lbuiltin builtin;
+        lambda *fun;
     };
 };
 
 struct lenv
 {
+    lenv *parent;
     int count;
     char **syms;
     lval **vals;
@@ -44,13 +53,15 @@ enum {
     LVAL_ERR,
     LVAL_NUM,
     LVAL_SYM,
-    LVAL_FUN,
+    LVAL_BUILTIN,
+    LVAL_LAMBDA,
     LVAL_SEXPR,
     LVAL_QEXPR
 };
 
 /* expr */
 
+void expr_del(expr *this);
 expr * expr_copy(expr *this);
 expr * expr_append(expr *this, lval *x);
 expr * expr_prepend(expr *this, lval *x);
@@ -68,7 +79,8 @@ lval * expr_eval(expr *this, lenv *env);
 lval * lval_num(long x);
 lval * lval_err(char *x);
 lval * lval_sym(char *x);
-lval * lval_fun(lbuiltin fun);
+lval * lval_builtin(lbuiltin builtin);
+lval * lval_lambda(lambda *fun);
 lval * lval_sexpr(void);
 lval * lval_qexpr(void);
 
@@ -76,6 +88,7 @@ void lval_del(lval *this);
 lval * lval_copy(lval *this);
 void lval_print(lval *this);
 void lval_println(lval *this);
+lval * lval_call(lval *this, expr *args, lenv *env);
 lval * lval_eval(lval *this, lenv *env);
 
 #define lval_append(this, x) (this)->expr = expr_append((this)->expr, (x))
@@ -85,10 +98,19 @@ lval * lval_eval(lval *this, lenv *env);
 
 lenv * lenv_new(void);
 void lenv_del(lenv *this);
+lenv * lenv_copy(lenv *this);
 lval * lenv_get(lenv *this, char *sym);
-void lenv_put_nocopy(lenv *this, char *sym, lval *v);
-void lenv_put(lenv *this, char *sym, lval *v);
-void lenv_add_builtin(lenv *this, char *name, lbuiltin fun);
+void lenv_set(lenv *this, char *sym, lval *v);
+void lenv_set_global(lenv *this, char *sym, lval *v);
+void lenv_add_builtin(lenv *this, char *name, lbuiltin builtin);
+
+/* lambda */
+
+lambda * lambda_new(void);
+void lambda_del(lambda *this);
+lambda * lambda_copy(lambda *this);
+lval * lambda_call(lambda *this, expr *args, lenv *env);
+void lambda_print(lambda *this);
 
 /* ast */
 
@@ -96,22 +118,6 @@ lval * ast_read_num(mpc_ast_t *t);
 lval * ast_read(mpc_ast_t *t);
 
 /* builtin */
-
-lval * builtin_plus(expr *this, lenv *env);
-lval * builtin_minus(expr *this, lenv *env);
-lval * builtin_mul(expr *this, lenv *env);
-lval * builtin_div(expr *this, lenv *env);
-lval * builtin_mod(expr *this, lenv *env);
-lval * builtin_min(expr *this, lenv *env);
-lval * builtin_max(expr *this, lenv *env);
-lval * builtin_head(expr *this, lenv *env);
-lval * builtin_tail(expr *this, lenv *env);
-lval * builtin_list(expr *this, lenv *env);
-lval * builtin_eval(expr *this, lenv *env);
-lval * builtin_join(expr *this, lenv *env);
-lval * builtin_cons(expr *this, lenv *env);
-lval * builtin_len(expr *this, lenv *env);
-lval * builtin_init(expr *this, lenv *env);
 
 void register_builtins(lenv *env);
 

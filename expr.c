@@ -1,5 +1,14 @@
 #include "ownlisp.h"
 
+void expr_del(expr *this) {
+    int i;
+    for (i = 0; i < this->count; ++i) {
+        lval_del(this->cell[i]);
+    }
+    if (this->cell) free(this->cell);
+    free(this);
+}
+
 expr * expr_copy(expr *this) {
     int i;
     expr *r = malloc(sizeof(expr));
@@ -65,7 +74,6 @@ lval * expr_pop_typed(expr *this, int type) {
 lval * expr_eval(expr *this, lenv *env) {
     int i;
     lval *head;
-    lval *r;
 
     for(i = 0; i < this->count; ++i) {
         this->cell[i] = lval_eval(this->cell[i], env);
@@ -77,17 +85,5 @@ lval * expr_eval(expr *this, lenv *env) {
 
     head = expr_pop(this, 0);
 
-    if (head->type != LVAL_FUN) {
-        if (head->type == LVAL_SYM) {
-            r = LERR_BAD_OP;
-        }
-        else {
-            r =  LERR_BAD_SEXP;
-        }
-    }
-
-    r = head->fun(this, env);
-
-    lval_del(head);
-    return r;
+    return lval_call(head, this, env);
 }

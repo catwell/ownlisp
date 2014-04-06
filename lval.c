@@ -27,9 +27,16 @@ lval * lval_sym(char *x) {
     return v;
 }
 
-lval * lval_fun(lbuiltin fun) {
+lval * lval_builtin(lbuiltin builtin) {
     lval *v = malloc(sizeof(lval));
-    v->type = LVAL_FUN;
+    v->type = LVAL_BUILTIN;
+    v->builtin = builtin;
+    return v;
+}
+
+lval * lval_lambda(lambda *fun) {
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_LAMBDA;
     v->fun = fun;
     return v;
 }
@@ -52,31 +59,27 @@ lval * lval_qexpr(void) {
 /* destructor, copy */
 
 void lval_del(lval *this) {
-    int i;
-
     switch (this->type) {
         case LVAL_ERR:
-            free(this->err);
+            if(this->err) free(this->err);
         break;
         case LVAL_NUM:
         break;
         case LVAL_SYM:
-            free(this->sym);
+            if(this->sym) free(this->sym);
         break;
-        case LVAL_FUN:
+        case LVAL_BUILTIN:
+        break;
+        case LVAL_LAMBDA:
+            if(this->fun) lambda_del(this->fun);
         break;
         case LVAL_SEXPR:
         case LVAL_QEXPR:
-            for (i = 0; i < this->expr->count; ++i) {
-                lval_del(this->expr->cell[i]);
-            }
-            if (this->expr->cell) free(this->expr->cell);
-            free(this->expr);
+            if(this->expr) expr_del(this->expr);
         break;
         default:
             assert(0);
     }
-
     free(this);
 }
 
@@ -100,8 +103,11 @@ lval * lval_copy(lval *this) {
             r->sym = malloc(sz);
             memcpy(r->sym, this->sym, sz);
         break;
-        case LVAL_FUN:
-            r->fun = this->fun;
+        case LVAL_BUILTIN:
+            r->builtin = this->builtin;
+        break;
+        case LVAL_LAMBDA:
+            r->fun = lambda_copy(this->fun);
         break;
         case LVAL_SEXPR:
         case LVAL_QEXPR:
@@ -127,8 +133,11 @@ void lval_print(lval *this) {
         case LVAL_SYM:
             printf("%s", this->sym);
         break;
-        case LVAL_FUN:
-            printf("<function>\n");
+        case LVAL_BUILTIN:
+            printf("<builtin>");
+        break;
+        case LVAL_LAMBDA:
+            lambda_print(this->fun);
         break;
         case LVAL_SEXPR:
             expr_print(this->expr, '(', ')');
@@ -146,7 +155,28 @@ void lval_println(lval *this) {
     putchar('\n');
 }
 
-/* eval */
+/* call, eval */
+
+lval * lval_call(lval *this, expr *args, lenv *env) {
+    lval *r;
+
+    switch (this->type) {
+        case LVAL_BUILTIN:
+            r = this->builtin(args, env);
+        break;
+        case LVAL_LAMBDA:
+            r = lambda_call(this->fun, args, env);
+        break;
+        case LVAL_SYM:
+            r = LERR_BAD_OP;
+        break;
+        default:
+            r = LERR_BAD_SEXP;
+    }
+
+    lval_del(this);
+    return r;
+}
 
 lval * lval_eval(lval *this, lenv *env) {
     lval *r = this;

@@ -2,7 +2,7 @@ CC= clang
 CFLAGS= -std=c99 -Wall -g
 LDFLAGS= -ledit -lm
 
-SRCS= mpc.c ast.c builtin.c expr.c lenv.c lval.c prompt.c
+SRCS= mpc.c ast.c builtin.c expr.c lambda.c lenv.c lval.c prompt.c
 OBJS= $(SRCS:.c=.o)
 
 all: prompt
