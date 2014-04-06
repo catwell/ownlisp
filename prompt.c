@@ -10,6 +10,9 @@
 #define DEBUG 0
 
 typedef struct lval lval;
+typedef struct  lenv lenv;
+
+typedef lval * (*lbuiltin)(lenv*, lval*);
 
 typedef struct {
     int count;
@@ -23,7 +26,15 @@ struct lval {
         char *err;
         char *sym;
         expr *expr;
+        lbuiltin fun;
     };
+};
+
+struct lenv
+{
+    int count;
+    char **syms;
+    lval **vals;
 };
 
 /* value types */
@@ -31,6 +42,7 @@ enum {
     LVAL_ERR,
     LVAL_NUM,
     LVAL_SYM,
+    LVAL_FUN,
     LVAL_SEXPR,
     LVAL_QEXPR
 };
@@ -45,6 +57,7 @@ enum {
 
 void lval_print(lval *this);
 lval *lval_eval(lval *this);
+lval * lval_copy(lval *this);
 
 lval * lval_num(long x) {
     lval *v = malloc(sizeof(lval));
@@ -68,6 +81,13 @@ lval * lval_sym(char *x) {
     v->type = LVAL_SYM;
     v->sym = malloc(sz);
     memcpy(v->sym, x, sz);
+    return v;
+}
+
+lval * lval_fun(lbuiltin fun) {
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_FUN;
+    v->fun = fun;
     return v;
 }
 
@@ -98,6 +118,8 @@ void lval_del(lval *this) {
         case LVAL_SYM:
             free(this->sym);
         break;
+        case LVAL_FUN:
+        break;
         case LVAL_SEXPR:
         case LVAL_QEXPR:
             for (i = 0; i < this->expr->count; ++i) {
@@ -111,6 +133,51 @@ void lval_del(lval *this) {
     }
 
     free(this);
+}
+
+expr * expr_copy(expr *this) {
+    int i;
+    expr *r = malloc(sizeof(expr));
+    r->count = this->count;
+    r->cell = malloc(sizeof(lval*) * r->count);
+    for(i = 0; i < r->count; ++i) {
+        r->cell[i]  = lval_copy(this->cell[i]);
+    }
+    return r;
+}
+
+lval * lval_copy(lval *this) {
+    ssize_t sz;
+
+    lval *r = malloc(sizeof(lval));
+    r->type = this->type;
+
+    switch(this->type) {
+        case LVAL_ERR:
+            sz = strlen(this->err) + 1;
+            r->err = malloc(sz);
+            memcpy(r->err, this->err, sz);
+        break;
+        case LVAL_NUM:
+            r->num = this->num;
+        break;
+        case LVAL_SYM:
+            sz = strlen(this->sym) + 1;
+            r->sym = malloc(sz);
+            memcpy(r->sym, this->sym, sz);
+        break;
+        case LVAL_FUN:
+            r->fun = this->fun;
+        break;
+        case LVAL_SEXPR:
+        case LVAL_QEXPR:
+            r->expr = expr_copy(this->expr);
+        break;
+        default:
+            assert(0);
+    }
+
+    return r;
 }
 
 expr *expr_append(expr *this, lval *x) {
@@ -194,6 +261,9 @@ void lval_print(lval *this) {
         break;
         case LVAL_SYM:
             printf("%s", this->sym);
+        break;
+        case LVAL_FUN:
+            printf("<function>\n");
         break;
         case LVAL_SEXPR:
             expr_print(this->expr, '(', ')');
@@ -564,9 +634,7 @@ int main(int argc, char** argv) {
     mpca_lang(
         MPC_LANG_DEFAULT,
         "number   :  /-?[0-9]+/ ;"
-        "symbol   :  '+' | '-' | '*' | '/' | '\%' | \"min\" | \"max\""
-        "         |  \"list\" | \"head\" | \"tail\" | \"join\" | \"eval\""
-        "         |  \"cons\" | \"len\" | \"init\" ;"
+        "symbol   :  /[a-zA-Z0-9_+\\-*\\/\%\\\\=<>!&]+/ ;"
         "sexpr    :  '(' <expr>* ')' ;"
         "qexpr    :  '{' <expr>* '}' ;"
         "expr     :  <number> | <symbol> | <sexpr> | <qexpr> ;"
