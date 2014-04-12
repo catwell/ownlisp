@@ -127,9 +127,11 @@ void register_builtins(lenv *env);
 #define LERR_DIV_ZERO lval_err("division by 0")
 #define LERR_BAD_NUM lval_err("bad number")
 #define LERR_BAD_ARITY lval_err("bad arity")
+#define LERR_BAD_FUN lval_err("bad function definition")
 #define LERR_BAD_SEXP lval_err("bad S-Expression")
 #define LERR_BAD_TYPE lval_err("bad type")
 #define LERR_EMPTY lval_err("empty")
 #define LERR_UNBOUND lval_err("unbound symbol")
+#define LERR_OVERFLOW lval_err("overflow")
 
 #endif /* OWNLISP_H */

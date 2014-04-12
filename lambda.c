@@ -26,19 +26,53 @@ lambda * lambda_copy(lambda *this) {
 }
 
 lval * lambda_call(lambda *this, expr *args, lenv *env) {
-    if (args->count > this->args->count) {
-        return LERR_BAD_ARITY;
-    }
-    else while (args->count) { /* bind arguments */
+    while (args->count) { /* bind arguments */
+        if (this->args->count == 0) {
+            return LERR_BAD_ARITY;
+        }
+        lval *v;
         lval *sym = expr_pop_sym(this->args);
         assert(sym->type == LVAL_SYM); /* checked earlier */
-        lval *v = expr_pop(args, 0);
+        if (!strcmp(sym->sym, "&")) { /* variadic */
+            lval_del(sym);
+            sym = expr_pop_sym(this->args);
+            if (sym->type == LVAL_ERR) {
+                lval_del(sym);
+                return LERR_BAD_FUN;
+            }
+            v = lval_qexpr();
+            free(v->expr);
+            v->expr = expr_copy(args);
+            lenv_set(this->env, sym->sym, v);
+            lval_del(sym);
+            break;
+        }
+        v = expr_pop(args, 0);
         lenv_set(this->env, sym->sym, v);
+        lval_del(sym);
+    }
+    if (
+        (this->args->count > 0) &&
+        (!strcmp(this->args->cell[0]->sym, "&"))
+    ) { /* variadic part empty */
+        lval *sym = expr_pop_sym(this->args);
+        if (sym->type == LVAL_ERR) {
+            lval_del(sym);
+            return LERR_BAD_FUN;
+        }
+        lval_del(sym);
+        sym = expr_pop_sym(this->args);
+        if (sym->type == LVAL_ERR) {
+            lval_del(sym);
+            return LERR_BAD_FUN;
+        }
+        lenv_set(this->env, sym->sym, lval_qexpr());
         lval_del(sym);
     }
     if (this->args->count == 0) { /* evaluate */
         this->env->parent = env;
         lval *f = lval_sexpr();
+        free(f->expr);
         f->expr = expr_copy(this->body);
         return lval_eval(f, this->env);
     }
