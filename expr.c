@@ -51,6 +51,9 @@ void expr_print(expr *this, char open, char close) {
 }
 
 lval * expr_pop(expr *this, int i) {
+    if (i >= this->count) {
+        return LERR_OVERFLOW;
+    }
     lval *r = this->cell[i];
     this->count--;
     memmove(
