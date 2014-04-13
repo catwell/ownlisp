@@ -71,6 +71,7 @@ void expr_print(expr *this, char open, char close);
 lval * expr_pop(expr *this, int i);
 lval * expr_pop_typed(expr *this, int type);
 lval * expr_eval(expr *this, lenv *env);
+int expr_eq(expr *x, expr *y);
 
 #define expr_pop_num(this) expr_pop_typed((this), LVAL_NUM)
 #define expr_pop_boolean(this) expr_pop_typed((this), LVAL_BOOLEAN)
@@ -92,6 +93,7 @@ void lval_del(lval *this);
 lval * lval_copy(lval *this);
 void lval_print(lval *this);
 void lval_println(lval *this);
+int lval_eq(lval *x, lval* y);
 lval * lval_call(lval *this, expr *args, lenv *env);
 lval * lval_eval(lval *this, lenv *env);
 
@@ -115,6 +117,7 @@ void lambda_del(lambda *this);
 lambda * lambda_copy(lambda *this);
 lval * lambda_call(lambda *this, expr *args, lenv *env);
 void lambda_print(lambda *this);
+int lambda_eq(lambda *x, lambda *y);
 
 /* ast */
 

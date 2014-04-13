@@ -90,3 +90,12 @@ lval * expr_eval(expr *this, lenv *env) {
 
     return lval_call(head, this, env);
 }
+
+int expr_eq(expr *x, expr *y) {
+    int i;
+    if (x->count != y->count) return 0;
+    for(i = 0; i < x->count; ++i) {
+        if (!lval_eq(x->cell[i], y->cell[i])) return 0;
+    }
+    return 1;
+}

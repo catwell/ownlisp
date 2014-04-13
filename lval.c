@@ -131,7 +131,7 @@ lval * lval_copy(lval *this) {
     return r;
 }
 
-/* print */
+/* print, eq */
 
 void lval_print(lval *this) {
     switch (this->type) {
@@ -167,6 +167,31 @@ void lval_print(lval *this) {
 void lval_println(lval *this) {
     lval_print(this);
     putchar('\n');
+}
+
+int lval_eq(lval *x, lval* y) {
+    if(x->type != y->type) return 0;
+
+    switch (x->type) {
+        case LVAL_ERR:
+            return (!strcmp(x->err, y->err));
+        case LVAL_NUM:
+            return (x->num == y->num);
+        case LVAL_BOOLEAN:
+            return (x->boolean == y->boolean);
+        case LVAL_SYM:
+            return (!strcmp(x->sym, y->sym));
+        case LVAL_BUILTIN:
+            return (x->builtin == y->builtin);
+        case LVAL_LAMBDA:
+            return lambda_eq(x->fun, y->fun);
+        case LVAL_SEXPR:
+        case LVAL_QEXPR:
+            return expr_eq(x->expr, y->expr);
+        break;
+        default:
+            assert(0);
+    }
 }
 
 /* call, eval */

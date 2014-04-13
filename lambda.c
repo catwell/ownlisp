@@ -89,3 +89,7 @@ void lambda_print(lambda *this) {
     expr_print(this->body, '{', '}');
     putchar(')');
 }
+
+int lambda_eq(lambda *x, lambda *y) {
+    return (expr_eq(x->args, y->args) && expr_eq(x->body, y->body));
+}

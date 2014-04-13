@@ -1,5 +1,44 @@
 #include "ownlisp.h"
 
+
+#define BUILTIN_CMP(cmp)                                                       \
+    do {                                                                       \
+        lval *fst;                                                             \
+        lval *cur;                                                             \
+                                                                               \
+        if(this->count < 2) return LERR_BAD_ARITY;                             \
+                                                                               \
+        fst = expr_pop(this, 0);                                               \
+        if (fst->type == LVAL_ERR) return fst;                                 \
+                                                                               \
+        while(this->count) {                                                   \
+            cur = expr_pop(this, 0);                                           \
+            if (cur->type == LVAL_ERR) {                                       \
+                lval_del(fst);                                                 \
+                return cur;                                                    \
+            }                                                                  \
+            if (cmp(fst, cur)) {                                               \
+                lval_del(fst);                                                 \
+                lval_del(cur);                                                 \
+                return lval_boolean(0);                                        \
+            }                                                                  \
+            lval_del(cur);                                                     \
+        }                                                                      \
+                                                                               \
+        lval_del(fst);                                                         \
+        return lval_boolean(1);                                                \
+    } while(0)
+
+lval * builtin_eq(expr *this, lenv *env) {
+    BUILTIN_CMP(!lval_eq);
+}
+
+lval * builtin_ne(expr *this, lenv *env) {
+    BUILTIN_CMP(lval_eq);
+}
+
+#undef BUILTIN_CMP
+
 #define BUILTIN_FOLD(init, op)                                                 \
 do {                                                                           \
     lval *c;                                                                   \
@@ -363,6 +402,8 @@ lval * builtin_lambda(expr *this, lenv *env) {
 }
 
 void register_builtins(lenv *env) {
+    lenv_add_builtin(env, "==",    builtin_eq);
+    lenv_add_builtin(env, "!=",    builtin_ne);
     lenv_add_builtin(env, "+",     builtin_plus);
     lenv_add_builtin(env, "-",     builtin_minus);
     lenv_add_builtin(env, "*",     builtin_mul);
