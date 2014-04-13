@@ -7,6 +7,7 @@
 #include <sys/types.h>
 
 #include "mpc.h"
+extern mpc_parser_t *Lispy;
 
 #define DEBUG 0
 
@@ -35,6 +36,7 @@ struct lval {
         char boolean;
         char *err;
         char *sym;
+        char *str;
         expr *expr;
         lbuiltin builtin;
         lambda *fun;
@@ -55,6 +57,7 @@ enum {
     LVAL_NUM,
     LVAL_BOOLEAN,
     LVAL_SYM,
+    LVAL_STR,
     LVAL_BUILTIN,
     LVAL_LAMBDA,
     LVAL_SEXPR,
@@ -76,6 +79,7 @@ int expr_eq(expr *x, expr *y);
 #define expr_pop_num(this) expr_pop_typed((this), LVAL_NUM)
 #define expr_pop_boolean(this) expr_pop_typed((this), LVAL_BOOLEAN)
 #define expr_pop_sym(this) expr_pop_typed((this), LVAL_SYM)
+#define expr_pop_str(this) expr_pop_typed((this), LVAL_STR)
 #define expr_pop_qexpr(this) expr_pop_typed((this), LVAL_QEXPR)
 
 /* lval */
@@ -84,6 +88,7 @@ lval * lval_num(long x);
 lval * lval_boolean(int x);
 lval * lval_err(char *x);
 lval * lval_sym(char *x);
+lval * lval_str(char *x);
 lval * lval_builtin(lbuiltin builtin);
 lval * lval_lambda(lambda *fun);
 lval * lval_sexpr(void);

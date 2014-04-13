@@ -34,6 +34,15 @@ lval * lval_sym(char *x) {
     return v;
 }
 
+lval * lval_str(char *x) {
+    ssize_t sz = strlen(x) + 1;
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_STR;
+    v->str = malloc(sz);
+    memcpy(v->sym, x, sz);
+    return v;
+}
+
 lval * lval_builtin(lbuiltin builtin) {
     lval *v = malloc(sizeof(lval));
     v->type = LVAL_BUILTIN;
@@ -76,6 +85,9 @@ void lval_del(lval *this) {
         case LVAL_SYM:
             if(this->sym) free(this->sym);
         break;
+        case LVAL_STR:
+            if(this->str) free(this->str);
+        break;
         case LVAL_BUILTIN:
         break;
         case LVAL_LAMBDA:
@@ -114,6 +126,11 @@ lval * lval_copy(lval *this) {
             r->sym = malloc(sz);
             memcpy(r->sym, this->sym, sz);
         break;
+        case LVAL_STR:
+            sz = strlen(this->str) + 1;
+            r->str = malloc(sz);
+            memcpy(r->str, this->str, sz);
+        break;
         case LVAL_BUILTIN:
             r->builtin = this->builtin;
         break;
@@ -134,6 +151,9 @@ lval * lval_copy(lval *this) {
 /* print, eq */
 
 void lval_print(lval *this) {
+    ssize_t sz;
+    char *escaped;
+
     switch (this->type) {
         case LVAL_ERR:
             printf("ERROR %s\n", this->err);
@@ -146,6 +166,14 @@ void lval_print(lval *this) {
         break;
         case LVAL_SYM:
             printf("%s", this->sym);
+        break;
+        case LVAL_STR:
+            sz = strlen(this->str) + 1;
+            escaped = malloc(sz);
+            memcpy(escaped, this->str, sz);
+            escaped = mpcf_escape(escaped);
+            printf("\"%s\"", escaped);
+            free(escaped);
         break;
         case LVAL_BUILTIN:
             printf("<builtin>");
@@ -181,6 +209,8 @@ int lval_eq(lval *x, lval* y) {
             return (x->boolean == y->boolean);
         case LVAL_SYM:
             return (!strcmp(x->sym, y->sym));
+        case LVAL_STR:
+            return (!strcmp(x->str, y->str));
         case LVAL_BUILTIN:
             return (x->builtin == y->builtin);
         case LVAL_LAMBDA:

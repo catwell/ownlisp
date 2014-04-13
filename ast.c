@@ -1,4 +1,5 @@
 #include "ownlisp.h"
+mpc_parser_t *Lispy;
 
 lval * ast_read_num(mpc_ast_t *t) {
     assert(strstr(t->tag, "number"));
@@ -24,6 +25,19 @@ lval * ast_read(mpc_ast_t *t) {
             return lval_sym(t->contents);
         }
     }
+
+    if (strstr(t->tag, "string")) {
+        ssize_t sz = strlen(t->contents) + 1 - 2 /* quotes */;
+        char *unescaped = malloc(sz);
+        memcpy(unescaped, t->contents+1, sz);
+        unescaped[sz-1] = '\0';
+        unescaped = mpcf_unescape(unescaped);
+        x = lval_str(unescaped);
+        free(unescaped);
+        return x;
+    }
+
+    if (strstr(t->tag, "comment")) return NULL;
 
     if (strstr(t->tag, "qexpr")) {
         x = lval_qexpr();

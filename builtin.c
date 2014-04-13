@@ -466,6 +466,64 @@ lval * builtin_or(expr *this, lenv *env) {
 
 #undef BUILTIN_FOLD_BOOL
 
+lval * builtin_load(expr *this, lenv *env) {
+    lval *fn;
+    lval *ast;
+    lval *result;
+    lval *r;
+    mpc_result_t parsed;
+
+    if(this->count != 1) return LERR_BAD_ARITY;
+
+    fn = expr_pop_str(this);
+    if (fn->type == LVAL_ERR) return fn;
+
+    if (mpc_parse_contents(fn->str, Lispy, &parsed)) {
+        ast = ast_read(parsed.output);
+        mpc_ast_delete(parsed.output);
+        while (ast->expr->count) {
+            result = lval_eval(expr_pop(ast->expr, 0), env);
+            if (result->type == LVAL_ERR) lval_println(result);
+            lval_del(result);
+        }
+        lval_del(ast);
+        r = lval_sexpr();
+    }
+    else {
+        char *err = mpc_err_string(parsed.error);
+        mpc_err_delete(parsed.error);
+        r = lval_err(err);
+        free(err);
+    }
+
+    lval_del(fn);
+    return(r);
+}
+
+lval * builtin_print(expr *this, lenv *env) {
+    lval *cur;
+
+    while(this->count) {
+        cur = expr_pop(this, 0);
+        lval_print(cur);
+        putchar(' ');
+        lval_del(cur);
+    }
+    putchar('\n');
+
+    return lval_sexpr();
+}
+
+lval * builtin_error(expr *this, lenv *env) {
+    lval *r;
+
+    if(this->count != 1) return LERR_BAD_ARITY;
+    r = expr_pop_str(this);
+    r->type = LVAL_ERR;
+
+    return r;
+}
+
 void register_builtins(lenv *env) {
     lenv_add_builtin(env, "==",    builtin_eq);
     lenv_add_builtin(env, "!=",    builtin_ne);
@@ -495,4 +553,7 @@ void register_builtins(lenv *env) {
     lenv_add_builtin(env, "!",     builtin_not);
     lenv_add_builtin(env, "&&",    builtin_and);
     lenv_add_builtin(env, "||",    builtin_or);
+    lenv_add_builtin(env, "load",  builtin_load);
+    lenv_add_builtin(env, "print", builtin_print);
+    lenv_add_builtin(env, "error", builtin_error);
 }
