@@ -431,6 +431,41 @@ lval * builtin_if(expr *this, lenv *env) {
     return r;
 }
 
+lval * builtin_not(expr *this, lenv *env) {
+    if(this->count != 1) return LERR_BAD_ARITY;
+
+    lval *r = expr_pop_boolean(this);
+    if (r->type == LVAL_ERR) return r;
+
+    r->boolean = 1 - r->boolean;
+
+    return r;
+}
+
+#define BUILTIN_FOLD_BOOL(fnd, nfnd)                                           \
+do {                                                                           \
+    lval *c;                                                                   \
+                                                                               \
+    while(this->count) {                                                       \
+        c = expr_pop_boolean(this);                                            \
+        if (c->type == LVAL_ERR) return c;                                     \
+        if (c->boolean == fnd) return c;                                       \
+        lval_del(c);                                                           \
+    }                                                                          \
+                                                                               \
+    return lval_boolean(nfnd);                                                 \
+} while(0)
+
+lval * builtin_and(expr *this, lenv *env) {
+    BUILTIN_FOLD_BOOL(0, 1);
+}
+
+lval * builtin_or(expr *this, lenv *env) {
+    BUILTIN_FOLD_BOOL(1, 0);
+}
+
+#undef BUILTIN_FOLD_BOOL
+
 void register_builtins(lenv *env) {
     lenv_add_builtin(env, "==",    builtin_eq);
     lenv_add_builtin(env, "!=",    builtin_ne);
@@ -457,4 +492,7 @@ void register_builtins(lenv *env) {
     lenv_add_builtin(env, "=",     builtin_deflocal);
     lenv_add_builtin(env, "\\",    builtin_lambda);
     lenv_add_builtin(env, "if",    builtin_if);
+    lenv_add_builtin(env, "!",     builtin_not);
+    lenv_add_builtin(env, "&&",    builtin_and);
+    lenv_add_builtin(env, "||",    builtin_or);
 }
