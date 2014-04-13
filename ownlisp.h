@@ -32,6 +32,7 @@ struct lval {
     int type;
     union {
         long num;
+        char boolean;
         char *err;
         char *sym;
         expr *expr;
@@ -52,6 +53,7 @@ struct lenv
 enum {
     LVAL_ERR,
     LVAL_NUM,
+    LVAL_BOOLEAN,
     LVAL_SYM,
     LVAL_BUILTIN,
     LVAL_LAMBDA,
@@ -71,12 +73,14 @@ lval * expr_pop_typed(expr *this, int type);
 lval * expr_eval(expr *this, lenv *env);
 
 #define expr_pop_num(this) expr_pop_typed((this), LVAL_NUM)
+#define expr_pop_boolean(this) expr_pop_typed((this), LVAL_BOOLEAN)
 #define expr_pop_sym(this) expr_pop_typed((this), LVAL_SYM)
 #define expr_pop_qexpr(this) expr_pop_typed((this), LVAL_QEXPR)
 
 /* lval */
 
 lval * lval_num(long x);
+lval * lval_boolean(int x);
 lval * lval_err(char *x);
 lval * lval_sym(char *x);
 lval * lval_builtin(lbuiltin builtin);
@@ -126,6 +130,7 @@ void register_builtins(lenv *env);
 #define LERR_BAD_OP lval_err("bad operator")
 #define LERR_DIV_ZERO lval_err("division by 0")
 #define LERR_BAD_NUM lval_err("bad number")
+#define LERR_BAD_BOOLEAN lval_err("bad boolean")
 #define LERR_BAD_ARITY lval_err("bad arity")
 #define LERR_BAD_FUN lval_err("bad function definition")
 #define LERR_BAD_SEXP lval_err("bad S-Expression")

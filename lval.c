@@ -9,6 +9,13 @@ lval * lval_num(long x) {
     return v;
 }
 
+lval * lval_boolean(int x) {
+    lval *v = malloc(sizeof(lval));
+    v->type = LVAL_BOOLEAN;
+    v->boolean = x ? 1 : 0;
+    return v;
+}
+
 lval * lval_err(char *x) {
     ssize_t sz = strlen(x) + 1;
     lval *v = malloc(sizeof(lval));
@@ -64,6 +71,7 @@ void lval_del(lval *this) {
             if(this->err) free(this->err);
         break;
         case LVAL_NUM:
+        case LVAL_BOOLEAN:
         break;
         case LVAL_SYM:
             if(this->sym) free(this->sym);
@@ -98,6 +106,9 @@ lval * lval_copy(lval *this) {
         case LVAL_NUM:
             r->num = this->num;
         break;
+        case LVAL_BOOLEAN:
+            r->boolean = this->boolean;
+        break;
         case LVAL_SYM:
             sz = strlen(this->sym) + 1;
             r->sym = malloc(sz);
@@ -129,6 +140,9 @@ void lval_print(lval *this) {
         break;
         case LVAL_NUM:
             printf("%ld", this->num);
+        break;
+        case LVAL_BOOLEAN:
+            printf(this->boolean ? "true" : "false");
         break;
         case LVAL_SYM:
             printf("%s", this->sym);

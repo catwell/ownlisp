@@ -1,21 +1,32 @@
 #include "ownlisp.h"
 
+#define BUILTIN_FOLD(init, op)                                                 \
+do {                                                                           \
+    lval *c;                                                                   \
+    lval *r = lval_num(init);                                                  \
+                                                                               \
+    while(this->count) {                                                       \
+        c = expr_pop_num(this);                                                \
+        if (c->type == LVAL_ERR) {                                             \
+            lval_del(r);                                                       \
+            return c;                                                          \
+        }                                                                      \
+        r->num op c->num;                                                      \
+        lval_del(c);                                                           \
+    }                                                                          \
+                                                                               \
+    return r;                                                                  \
+} while(0)
+
 lval * builtin_plus(expr *this, lenv *env) {
-    lval *c;
-    lval *r = lval_num(0);
-
-    while(this->count) {
-        c = expr_pop_num(this);
-        if (c->type == LVAL_ERR) {
-            lval_del(r);
-            return c;
-        }
-        r->num += c->num;
-        lval_del(c);
-    }
-
-    return r;
+    BUILTIN_FOLD(0, +=);
 }
+
+lval * builtin_mul(expr *this, lenv *env) {
+    BUILTIN_FOLD(1, *=);
+}
+
+#undef BUILTIN_FOLD
 
 lval * builtin_minus(expr *this, lenv *env) {
     lval *c;
@@ -23,6 +34,7 @@ lval * builtin_minus(expr *this, lenv *env) {
 
     if  (this->count > 1) {
         r = expr_pop_num(this);
+        if (r->type == LVAL_ERR) return r;
     }
     else {
         r = lval_num(0);
@@ -41,112 +53,121 @@ lval * builtin_minus(expr *this, lenv *env) {
     return r;
 }
 
-lval * builtin_mul(expr *this, lenv *env) {
-    lval *c;
-    lval *r = lval_num(1);
-
-    while(this->count) {
-        c = expr_pop_num(this);
-        if (c->type == LVAL_ERR) {
-            lval_del(r);
-            return c;
-        }
-        r->num *= c->num;
-        lval_del(c);
-    }
-
-    return r;
-}
+#define BUILTIN_DIV(op)                                                        \
+do {                                                                           \
+    if(this->count != 2) return LERR_BAD_ARITY;                                \
+                                                                               \
+    lval *left = expr_pop_num(this);                                           \
+    if (left->type == LVAL_ERR) return left;                                   \
+    lval *right = expr_pop_num(this);                                          \
+    if (right->type == LVAL_ERR) {                                             \
+        lval_del(left);                                                        \
+        return right;                                                          \
+    }                                                                          \
+                                                                               \
+    if (right->num == 0) {                                                     \
+        lval_del(left); lval_del(right);                                       \
+        return LERR_DIV_ZERO;                                                  \
+    }                                                                          \
+                                                                               \
+    left->num op right->num;                                                   \
+    return left;                                                               \
+} while(0)
 
 lval * builtin_div(expr *this, lenv *env) {
-    if(this->count != 2) return LERR_BAD_ARITY;
-
-    lval *left = expr_pop_num(this);
-    if (left->type == LVAL_ERR) return left;
-    lval *right = expr_pop_num(this);
-    if (right->type == LVAL_ERR) {
-        lval_del(left);
-        return right;
-    }
-
-    if (right->num == 0) {
-        lval_del(left); lval_del(right);
-        return LERR_DIV_ZERO;
-    }
-
-    left->num /= right->num;
-    return left;
+    BUILTIN_DIV(/=);
 }
 
 lval * builtin_mod(expr *this, lenv *env) {
-    if(this->count != 2) return LERR_BAD_ARITY;
-
-    lval *left = expr_pop_num(this);
-    if (left->type == LVAL_ERR) return left;
-    lval *right = expr_pop_num(this);
-    if (right->type == LVAL_ERR) {
-        lval_del(left);
-        return right;
-    }
-
-    if (right->num == 0) {
-        lval_del(left); lval_del(right);
-        return LERR_DIV_ZERO;
-    }
-
-    left->num %= right->num;
-    return left;
+    BUILTIN_DIV(%=);
 }
 
+#undef BUILTIN_DIV
+
+#define BUILTIN_PICK(cmp)                                                      \
+do {                                                                           \
+    lval *c;                                                                   \
+    lval *r;                                                                   \
+                                                                               \
+    if(this->count < 1) return LERR_BAD_ARITY;                                 \
+                                                                               \
+    r = expr_pop_num(this);                                                    \
+    if (r->type == LVAL_ERR) return r;                                         \
+                                                                               \
+    while(this->count) {                                                       \
+        c = expr_pop_num(this);                                                \
+        if (c->type == LVAL_ERR) {                                             \
+            lval_del(r);                                                       \
+            return c;                                                          \
+        }                                                                      \
+        if(c->num cmp r->num) {                                                \
+            lval_del(r);                                                       \
+            r = c;                                                             \
+        }                                                                      \
+        else {                                                                 \
+            lval_del(c);                                                       \
+        }                                                                      \
+    }                                                                          \
+                                                                               \
+    return r;                                                                  \
+} while(0)
+
+
 lval * builtin_min(expr *this, lenv *env) {
-    if(this->count < 1) return LERR_BAD_ARITY;
-
-    lval *c;
-    lval *r = expr_pop_num(this);
-    if (r->type == LVAL_ERR) return r;
-
-    while(this->count) {
-        c = expr_pop_num(this);
-        if (c->type == LVAL_ERR) {
-            lval_del(r);
-            return c;
-        }
-        if(c->num > r->num) {
-            lval_del(r);
-            r = c;
-        }
-        else {
-            lval_del(c);
-        }
-    }
-
-    return r;
+    BUILTIN_PICK(<);
 }
 
 lval * builtin_max(expr *this, lenv *env) {
-    if(this->count < 1) return LERR_BAD_ARITY;
-
-    lval *c;
-    lval *r = expr_pop_num(this);
-    if (r->type == LVAL_ERR) return r;
-
-    while(this->count) {
-        c = expr_pop_num(this);
-        if (c->type == LVAL_ERR) {
-            lval_del(r);
-            return c;
-        }
-        if(c->num < r->num) {
-            lval_del(r);
-            r = c;
-        }
-        else {
-            lval_del(c);
-        }
-    }
-
-    return r;
+    BUILTIN_PICK(>);
 }
+
+#undef BUILTIN_PICK
+
+#define BUILTIN_ORD(cmp)                                                       \
+    do {                                                                       \
+        lval *fst;                                                             \
+        lval *cur;                                                             \
+                                                                               \
+        if(this->count < 2) return LERR_BAD_ARITY;                             \
+                                                                               \
+        fst = expr_pop_num(this);                                              \
+        if (fst->type == LVAL_ERR) return fst;                                 \
+                                                                               \
+        while(this->count) {                                                   \
+            cur = expr_pop_num(this);                                          \
+            if (cur->type == LVAL_ERR) {                                       \
+                lval_del(fst);                                                 \
+                return cur;                                                    \
+            }                                                                  \
+            if (cur->num cmp fst->num) {                                       \
+                lval_del(fst);                                                 \
+                lval_del(cur);                                                 \
+                return lval_boolean(0);                                        \
+            }                                                                  \
+            lval_del(cur);                                                     \
+        }                                                                      \
+                                                                               \
+        lval_del(fst);                                                         \
+        return lval_boolean(1);                                                \
+    } while(0)
+
+lval * builtin_lt(expr *this, lenv *env) {
+    BUILTIN_ORD(<=);
+}
+
+lval * builtin_le(expr *this, lenv *env) {
+    BUILTIN_ORD(<);
+}
+
+lval * builtin_gt(expr *this, lenv *env) {
+    BUILTIN_ORD(>=);
+}
+
+lval * builtin_ge(expr *this, lenv *env) {
+    BUILTIN_ORD(>);
+}
+
+#undef BUILTIN_ORD
 
 lval * builtin_head(expr *this, lenv *env) {
     if(this->count != 1) return LERR_BAD_ARITY;
@@ -268,46 +289,44 @@ lval * builtin_init(expr *this, lenv *env) {
     return r;
 }
 
-static lval * _def_impl(expr *this, lenv *env, int global) {
-    lval *sym;
-    lval *v;
-
-    if(this->count < 1) return LERR_BAD_ARITY;
-
-    lval *syms = expr_pop_qexpr(this);
-    if (syms->type == LVAL_ERR) return syms;
-
-    if(this->count != syms->expr->count) {
-        lval_del(syms);
-        return LERR_BAD_ARITY;
-    }
-
-    while(this->count) {
-        sym = expr_pop_sym(syms->expr);
-        if (sym->type == LVAL_ERR) {
-            lval_del(syms);
-            return sym;
-        }
-        v = expr_pop(this, 0);
-        if (global) { /* def */
-            lenv_set_global(env, sym->sym, v);
-        }
-        else { /* = */
-            lenv_set(env, sym->sym, v);
-        }
-    }
-
-    lval_del(syms);
-    return lval_sexpr();
-}
+#define BUILTIN_DEF(setter)                                                    \
+do {                                                                           \
+    lval *sym;                                                                 \
+    lval *v;                                                                   \
+                                                                               \
+    if(this->count < 1) return LERR_BAD_ARITY;                                 \
+                                                                               \
+    lval *syms = expr_pop_qexpr(this);                                         \
+    if (syms->type == LVAL_ERR) return syms;                                   \
+                                                                               \
+    if(this->count != syms->expr->count) {                                     \
+        lval_del(syms);                                                        \
+        return LERR_BAD_ARITY;                                                 \
+    }                                                                          \
+                                                                               \
+    while(this->count) {                                                       \
+        sym = expr_pop_sym(syms->expr);                                        \
+        if (sym->type == LVAL_ERR) {                                           \
+            lval_del(syms);                                                    \
+            return sym;                                                        \
+        }                                                                      \
+        v = expr_pop(this, 0);                                                 \
+        setter(env, sym->sym, v);                                              \
+    }                                                                          \
+                                                                               \
+    lval_del(syms);                                                            \
+    return lval_sexpr();                                                       \
+} while(0)
 
 lval * builtin_def(expr *this, lenv *env) {
-    return _def_impl(this, env, 1);
+    BUILTIN_DEF(lenv_set_global);
 }
 
 lval * builtin_deflocal(expr *this, lenv *env) {
-    return _def_impl(this, env, 0);
+    BUILTIN_DEF(lenv_set);
 }
+
+#undef BUILTIN_DEF
 
 lval * builtin_lambda(expr *this, lenv *env) {
     int i;
@@ -344,22 +363,26 @@ lval * builtin_lambda(expr *this, lenv *env) {
 }
 
 void register_builtins(lenv *env) {
-    lenv_add_builtin(env, "+", builtin_plus);
-    lenv_add_builtin(env, "-", builtin_minus);
-    lenv_add_builtin(env, "*", builtin_mul);
-    lenv_add_builtin(env, "/", builtin_div);
-    lenv_add_builtin(env, "\%", builtin_mod);
-    lenv_add_builtin(env, "min", builtin_min);
-    lenv_add_builtin(env, "max", builtin_max);
-    lenv_add_builtin(env, "list", builtin_list);
-    lenv_add_builtin(env, "head", builtin_head);
-    lenv_add_builtin(env, "tail", builtin_tail);
-    lenv_add_builtin(env, "eval", builtin_eval);
-    lenv_add_builtin(env, "join", builtin_join);
-    lenv_add_builtin(env, "cons", builtin_cons);
-    lenv_add_builtin(env, "len", builtin_len);
-    lenv_add_builtin(env, "init", builtin_init);
-    lenv_add_builtin(env, "def", builtin_def);
-    lenv_add_builtin(env, "=", builtin_deflocal);
-    lenv_add_builtin(env, "\\", builtin_lambda);
+    lenv_add_builtin(env, "+",     builtin_plus);
+    lenv_add_builtin(env, "-",     builtin_minus);
+    lenv_add_builtin(env, "*",     builtin_mul);
+    lenv_add_builtin(env, "/",     builtin_div);
+    lenv_add_builtin(env, "\%",    builtin_mod);
+    lenv_add_builtin(env, "min",   builtin_min);
+    lenv_add_builtin(env, "max",   builtin_max);
+    lenv_add_builtin(env, "<",     builtin_lt);
+    lenv_add_builtin(env, "<=",    builtin_le);
+    lenv_add_builtin(env, ">",     builtin_gt);
+    lenv_add_builtin(env, ">=",    builtin_ge);
+    lenv_add_builtin(env, "list",  builtin_list);
+    lenv_add_builtin(env, "head",  builtin_head);
+    lenv_add_builtin(env, "tail",  builtin_tail);
+    lenv_add_builtin(env, "eval",  builtin_eval);
+    lenv_add_builtin(env, "join",  builtin_join);
+    lenv_add_builtin(env, "cons",  builtin_cons);
+    lenv_add_builtin(env, "len",   builtin_len);
+    lenv_add_builtin(env, "init",  builtin_init);
+    lenv_add_builtin(env, "def",   builtin_def);
+    lenv_add_builtin(env, "=",     builtin_deflocal);
+    lenv_add_builtin(env, "\\",    builtin_lambda);
 }
