@@ -12,8 +12,18 @@ lval * ast_read(mpc_ast_t *t) {
     lval *x;
 
     if (strstr(t->tag, "number")) return ast_read_num(t);
-    if (strstr(t->tag, "symbol")) return lval_sym(t->contents);
 
+    if (strstr(t->tag, "symbol")) {
+        if (!strcmp(t->contents, "true")) {
+            return lval_boolean(1);
+        }
+        else if (!strcmp(t->contents, "false")) {
+            return lval_boolean(0);
+        }
+        else {
+            return lval_sym(t->contents);
+        }
+    }
 
     if (strstr(t->tag, "qexpr")) {
         x = lval_qexpr();

@@ -401,6 +401,36 @@ lval * builtin_lambda(expr *this, lenv *env) {
     return lval_lambda(r);
 }
 
+lval * builtin_if(expr *this, lenv *env) {
+    lval *b;
+    lval *t;
+    lval *f;
+    lval *r;
+
+    if(this->count != 3) return LERR_BAD_ARITY;
+    b = expr_pop_boolean(this);
+    if (b->type == LVAL_ERR) return b;
+    t = expr_pop_qexpr(this);
+    if (t->type == LVAL_ERR) {
+        lval_del(b);
+        return t;
+    }
+    f = expr_pop_qexpr(this);
+    if (f->type == LVAL_ERR) {
+        lval_del(b);
+        lval_del(t);
+        return f;
+    }
+
+    r = expr_eval(b->boolean ? t->expr : f->expr, env);
+
+    lval_del(b);
+    lval_del(t);
+    lval_del(f);
+
+    return r;
+}
+
 void register_builtins(lenv *env) {
     lenv_add_builtin(env, "==",    builtin_eq);
     lenv_add_builtin(env, "!=",    builtin_ne);
@@ -426,4 +456,5 @@ void register_builtins(lenv *env) {
     lenv_add_builtin(env, "def",   builtin_def);
     lenv_add_builtin(env, "=",     builtin_deflocal);
     lenv_add_builtin(env, "\\",    builtin_lambda);
+    lenv_add_builtin(env, "if",    builtin_if);
 }
