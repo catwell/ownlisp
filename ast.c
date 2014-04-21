@@ -51,12 +51,14 @@ lval * ast_read(mpc_ast_t *t) {
     }
 
     for (i = 0; i < t->children_num; ++i) {
+        lval *v;
         if (
             (strlen(t->children[i]->contents) == 1) &&
             strstr("(){}", t->children[i]->contents)
         ) continue;
-        if (!strcmp(t->children[i]->tag,  "regex")) continue;
-        lval_append(x, ast_read(t->children[i]));
+        if (!strcmp(t->children[i]->tag, "regex")) continue;
+        v = ast_read(t->children[i]);
+        if(v) lval_append(x, ast_read(t->children[i]));
     }
 
     return x;

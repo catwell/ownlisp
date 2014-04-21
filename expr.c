@@ -55,6 +55,7 @@ lval * expr_pop(expr *this, int i) {
         return LERR_OVERFLOW;
     }
     lval *r = this->cell[i];
+    assert(r);
     this->count--;
     memmove(
         this->cell + i, this->cell + i + 1,
