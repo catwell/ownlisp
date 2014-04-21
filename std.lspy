@@ -1,0 +1,79 @@
+; atoms
+
+(def {nil} {})
+
+
+; function definition
+
+(def {fun} (\ {args body} {
+    def (head args) (\ (tail args) body)
+}))
+
+(fun {add-together x y} {+ x y})
+
+
+; currying
+
+(fun {curry f xs} {
+    eval (join (list f) xs)
+})
+
+(fun {uncurry f & xs} {
+    f xs
+})
+
+
+; list manipulation
+
+(fun {fst l} { eval (head l) })
+(fun {snd l} { eval (head (tail l)) })
+
+(fun {nth n l} {
+    if (> n 1) {
+        nth (- n 1) (tail l)
+    } {
+      if (== n 1) {
+        fst l
+      } {
+        error "invalid number"
+      }
+    }
+})
+
+(fun {last l} {
+    nth (len l) l
+})
+
+
+; do, let
+
+(fun {do & l} {
+  if (== l nil)
+    {nil}
+    {last l}
+})
+
+(fun {let b} {
+  ((\ {_} b) ())
+})
+
+
+; funtools
+
+(fun {map f l} {
+  if (== l nil)
+    {nil}
+    {join (list (f (fst l))) (map f (tail l))}
+})
+
+(fun {filter f l} {
+  if (== l nil)
+    {nil}
+    {join (if (f (fst l)) {head l} {nil}) (filter f (tail l))}
+})
+
+(fun {reduce f z l} {
+  if (== l nil)
+    {z}
+    {foldl f (f z (fst l)) (tail l)}
+})
