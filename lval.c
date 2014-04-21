@@ -224,6 +224,31 @@ int lval_eq(lval *x, lval* y) {
     }
 }
 
+char * lval_type(lval *this) {
+    switch (this->type) {
+        case LVAL_ERR:
+            return "error";
+        case LVAL_NUM:
+            return "number";
+        case LVAL_BOOLEAN:
+            return "boolean";
+        case LVAL_SYM:
+            return "symbol";
+        case LVAL_STR:
+            return "string";
+        case LVAL_BUILTIN:
+            return "builtin";
+        case LVAL_LAMBDA:
+            return "lambda";
+        case LVAL_SEXPR:
+            return "sexpr";
+        case LVAL_QEXPR:
+            return "qexpr";
+        default:
+            assert(0);
+    }
+}
+
 /* call, eval */
 
 lval * lval_call(lval *this, expr *args, lenv *env) {

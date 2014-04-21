@@ -99,6 +99,7 @@ lval * lval_copy(lval *this);
 void lval_print(lval *this);
 void lval_println(lval *this);
 int lval_eq(lval *x, lval* y);
+char * lval_type(lval *this);
 lval * lval_call(lval *this, expr *args, lenv *env);
 lval * lval_eval(lval *this, lenv *env);
 

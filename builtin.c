@@ -539,6 +539,19 @@ lval * builtin_error(expr *this, lenv *env) {
     return r;
 }
 
+lval * builtin_type(expr *this, lenv *env) {
+    lval *v;
+    lval *r;
+
+    if(this->count != 1) return LERR_BAD_ARITY;
+
+    v = expr_pop(this, 0);
+    r = lval_str(lval_type(v));
+
+    lval_del(v);
+    return r;
+}
+
 void register_builtins(lenv *env) {
     lenv_add_builtin(env, "==",    builtin_eq);
     lenv_add_builtin(env, "!=",    builtin_ne);
@@ -571,4 +584,5 @@ void register_builtins(lenv *env) {
     lenv_add_builtin(env, "load",  builtin_load);
     lenv_add_builtin(env, "print", builtin_print);
     lenv_add_builtin(env, "error", builtin_error);
+    lenv_add_builtin(env, "type",  builtin_type);
 }
