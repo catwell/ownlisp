@@ -128,6 +128,7 @@ int lambda_eq(lambda *x, lambda *y);
 
 lval * ast_read_num(mpc_ast_t *t);
 lval * ast_read(mpc_ast_t *t);
+lval * ast_load_eval(char* fn, lenv *env);
 
 /* builtin */
 

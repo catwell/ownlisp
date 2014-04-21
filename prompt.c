@@ -34,26 +34,36 @@ int main(int argc, char** argv) {
     lenv *env = lenv_new();
     register_builtins(env);
 
-    for(;;) {
+    if (argc == 1) {
+        for(;;) {
 
-        input = readline("> ");
-        add_history(input);
+            input = readline("> ");
+            add_history(input);
 
-        if (mpc_parse("<stdin>", input, Lispy, &mpc_result)) {
-            result = ast_read(mpc_result.output);
-            if (!result) continue;
-            if (DEBUG) lval_println(result);
-            result = lval_eval(result, env);
-            lval_println(result);
-            lval_del(result);
-            mpc_ast_delete(mpc_result.output);
+            if (mpc_parse("<stdin>", input, Lispy, &mpc_result)) {
+                result = ast_read(mpc_result.output);
+                if (!result) continue;
+                if (DEBUG) lval_println(result);
+                result = lval_eval(result, env);
+                lval_println(result);
+                lval_del(result);
+                mpc_ast_delete(mpc_result.output);
+            }
+            else {
+                mpc_err_print(mpc_result.error);
+                mpc_err_delete(mpc_result.error);
+            }
+
+            free(input);
         }
-        else {
-            mpc_err_print(mpc_result.error);
-            mpc_err_delete(mpc_result.error);
-        }
-
-        free(input);
+    }
+    else if (argc == 2) {
+        result = ast_load_eval(argv[1], env);
+        if (result->type == LVAL_ERR) lval_println(result);
+        lval_del(result);
+    }
+    else {
+        printf("invalid arguments\n");
     }
 
     lenv_del(env);

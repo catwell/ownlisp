@@ -61,3 +61,30 @@ lval * ast_read(mpc_ast_t *t) {
 
     return x;
 }
+
+lval * ast_load_eval(char* fn, lenv *env) {
+    lval *r;
+    mpc_result_t parsed;
+    lval *ast;
+    lval *result;
+
+    if (mpc_parse_contents(fn, Lispy, &parsed)) {
+        ast = ast_read(parsed.output);
+        mpc_ast_delete(parsed.output);
+        while (ast->expr->count) {
+            result = lval_eval(expr_pop(ast->expr, 0), env);
+            if (result->type == LVAL_ERR) lval_println(result);
+            lval_del(result);
+        }
+        lval_del(ast);
+        r = lval_sexpr();
+    }
+    else {
+        char *err = mpc_err_string(parsed.error);
+        mpc_err_delete(parsed.error);
+        r = lval_err(err);
+        free(err);
+    }
+
+    return r;
+}

@@ -1,6 +1,5 @@
 #include "ownlisp.h"
 
-
 #define BUILTIN_CMP(cmp)                                                       \
     do {                                                                       \
         lval *fst;                                                             \
@@ -468,33 +467,14 @@ lval * builtin_or(expr *this, lenv *env) {
 
 lval * builtin_load(expr *this, lenv *env) {
     lval *fn;
-    lval *ast;
-    lval *result;
     lval *r;
-    mpc_result_t parsed;
 
     if(this->count != 1) return LERR_BAD_ARITY;
 
     fn = expr_pop_str(this);
     if (fn->type == LVAL_ERR) return fn;
 
-    if (mpc_parse_contents(fn->str, Lispy, &parsed)) {
-        ast = ast_read(parsed.output);
-        mpc_ast_delete(parsed.output);
-        while (ast->expr->count) {
-            result = lval_eval(expr_pop(ast->expr, 0), env);
-            if (result->type == LVAL_ERR) lval_println(result);
-            lval_del(result);
-        }
-        lval_del(ast);
-        r = lval_sexpr();
-    }
-    else {
-        char *err = mpc_err_string(parsed.error);
-        mpc_err_delete(parsed.error);
-        r = lval_err(err);
-        free(err);
-    }
+    r = ast_load_eval(fn->str, env);
 
     lval_del(fn);
     return(r);
