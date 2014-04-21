@@ -261,7 +261,7 @@ lval * builtin_eval(expr *this, lenv *env) {
     return lval_eval(r, env);
 }
 
-lval * builtin_join(expr *this, lenv *env) {
+lval * _builtin_join_qexprs(expr *this, lenv *env) {
     if(this->count < 1) return LERR_BAD_ARITY;
 
     lval *c;
@@ -281,6 +281,41 @@ lval * builtin_join(expr *this, lenv *env) {
     }
 
     return r;
+}
+
+lval * _builtin_join_strings(expr *this, lenv *env) {
+    if(this->count < 1) return LERR_BAD_ARITY;
+
+    lval *c;
+    lval *r = expr_pop_str(this);
+    if (r->type == LVAL_ERR) return r;
+    ssize_t sz = strlen(r->str) + 1;
+
+    while(this->count) {
+        c = expr_pop_str(this);
+        if (c->type == LVAL_ERR) {
+            lval_del(r);
+            return c;
+        }
+        sz += strlen(c->str);
+        r->str = realloc(r->str, sz);
+        strcat(r->str, c->str);
+        lval_del(c);
+    }
+
+    return r;
+}
+
+lval * builtin_join(expr *this, lenv *env) {
+    if(this->count < 1) return LERR_BAD_ARITY;
+    switch (this->cell[0]->type) {
+        case LVAL_QEXPR:
+            return _builtin_join_qexprs(this, env);
+        case LVAL_STR:
+            return _builtin_join_strings(this, env);
+        default:
+            return LERR_BAD_TYPE;
+    }
 }
 
 lval * builtin_cons(expr *this, lenv *env) {
