@@ -385,6 +385,7 @@ do {                                                                           \
         }                                                                      \
         v = expr_pop(this, 0);                                                 \
         setter(env, sym->sym, v);                                              \
+        lval_del(sym);                                                         \
     }                                                                          \
                                                                                \
     lval_del(syms);                                                            \

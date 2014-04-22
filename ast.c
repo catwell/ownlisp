@@ -58,7 +58,7 @@ lval * ast_read(mpc_ast_t *t) {
         ) continue;
         if (!strcmp(t->children[i]->tag, "regex")) continue;
         v = ast_read(t->children[i]);
-        if(v) lval_append(x, ast_read(t->children[i]));
+        if(v) lval_append(x, v);
     }
 
     return x;
